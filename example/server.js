@@ -72,18 +72,22 @@ function auth(url) {
 
 function Node(port) {
   // web server
-  this.http = Stack.listen(stack, {
-    websocket: {
-      foo: true
-    }
-  }, port);
+  this.http = Stack.listen(stack, {}, port);
   console.log('Listening to http://*:' + port + '. Use Ctrl+C to stop.');
-  /*this.ws.on('connection', function() {
-    console.log('CONNECTION', this);
+  // handle WebSocket connections
+  this.http.on('upgrade', require('./lib/websocket'));
+  this.http.on('wsconnection', function(socket) {
+    console.log('CONNECTION', socket);
   });
-  this.ws.on('message', function() {
-    console.log('MESSAGE', arguments, this);
-  });*/
+  this.http.on('wsmessage', function(socket, message) {
+    console.log('MESSAGE', message);
+  });
+  this.http.on('wsclose', function(socket, forced) {
+    console.log('CLOSED', forced);
+  });
+  this.http.on('wserror', function(socket, error) {
+    console.log('ERROR', error);
+  });
 }
 
 var s1 = new Node(3001);

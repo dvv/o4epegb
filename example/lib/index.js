@@ -54,10 +54,6 @@ Stack.listen = function(layers, options) {
   // create and run HTTP(S) server
 	var server = require(options.key ? 'https' : 'http').createServer(Stack(layers), options);
 	server.listen.apply(server, Array.prototype.slice.call(arguments, 2));
-  // handle WebSocket connections
-  if (options.websocket) {
-    server.on('upgrade', require('./websocket')(options.websocket));
-  }
 	return server;
 };
 

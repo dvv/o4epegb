@@ -27,8 +27,23 @@
 	<script type="text/javascript" src="js/es5-shim.js" charset="utf-8"></script>
 	<script type="text/javascript" src="js/jquery-1.6.1.min.js" charset="utf-8"></script>
 	<script type="text/javascript" src="js/doT.js" charset="utf-8"></script>
+
+	<script type="text/javascript" src="js/flash/swfobject.js" charset="utf-8"></script>
 	<script type="text/javascript" charset="utf-8">
-ws = new WebSocket(document.location.href.replace(/^http/, 'ws'));
+    var WEB_SOCKET_SWF_LOCATION = 'js/flash/WebSocketMain.swf';
+  </script>
+	<script type="text/javascript" src="js/flash/web_socket.js" charset="utf-8"></script>
+
+	<script type="text/javascript" charset="utf-8">
+// warn about possibility of enabling native WebSockets
+if (WebSocket && WebSocket.__initialize) {
+  window.navigator.userAgent.match(/ Firefox\/[4-9]\./) &&
+    console.warn('in about:config set network.websocket.enabled = true and network.websocket.override-security-block = true and restart browser');
+  window.navigator.userAgent.match(/^Opera\/.* Version\/1[1-9]/) &&
+    opera && console.warn('in about:config set "Enable WebSockets" to true and restart browser');
+  // TODO: IE ;)
+}
+var ws = new WebSocket(document.location.href.replace(/^http/, 'ws'));
 ws.onopen = function() {
 	console.log('OPEN');
 };
