@@ -19,6 +19,13 @@ function Client(id, manager) {
 // inherit from EventEmitter
 Client.prototype.__proto__ = process.EventEmitter.prototype;
 
+Client.prototype.socket = function(id) {
+  if (!this.sockets[id]) {
+    this.sockets[id] = new Socket(id, this);
+  }
+  return this.sockets[id];
+};
+
 /***
 //
 // manual acknowledgement
@@ -32,10 +39,6 @@ Client.prototype.ack = function(id) {
   return this;
 };
 ***/
-
-Client.prototype.broadcast = function() {
-  return this.manager.broadcast.apply(this.manager, arguments);
-};
 
 /**
  * 
@@ -119,15 +122,9 @@ Manager.prototype.client = function(id) {
   return this.clients[id];
 };
 
-Manager.prototype.broadcast = function(or, and, not, flt) {
-  var bcast = new Broadcast(or, and, not, flt);
-  bcast.manager = this;
-  return bcast;
-};
-
 /**
  * 
- * Broadcast helper
+ * Broadcast plugin
  * 
  */
 
@@ -189,6 +186,16 @@ Broadcast.prototype.emit = function(event, payload) {
   return this;
 };
 
+Manager.prototype.broadcast = function(or, and, not, flt) {
+  var bcast = new Broadcast(or, and, not, flt);
+  bcast.manager = this;
+  return bcast;
+};
+
+Client.prototype.broadcast = function() {
+  return this.manager.broadcast.apply(this.manager, arguments);
+};
+
 /**
  * 
  * POC code
@@ -217,24 +224,25 @@ redis.multi([
   ['sadd', 'g:banned', 'c:3']
 ]).exec(function() {
 
-  function cc(mgr, id) {
+  function cc(mgr, id, connid) {
     var client = mgr.client(id);
     client.on('//tick', function() {
       console.log('TICK for client', mgr.id + ':' + id);
     });
+    client.socket(connid);
     return client;
   }
 
   var c1 = cc(m1, 'c:1');
-  var c2 = cc(m2, 'c:2');
+  var c2 = cc(m2, 'c:2'); cc(m2, 'c:1');
   var c3 = cc(m3, 'c:3');
-  var c4 = cc(m4, 'c:4');
+  var c4 = cc(m4, 'c:4'); cc(m4, 'c:1');
   setInterval(function() {
     // this should result in pushing to client 1 only
     // as ([1] + [2, 3, 4]) * [1, 3] - [3] === [1]
     c1.broadcast(['c:1', 'g:1allies'], ['g:jslovers'], ['g:banned']).emit('//tick', {foo: payload});
   }, 1000);
-  setInterval(function() {
+/*  setInterval(function() {
     // this should result in pushing to clients 1, 2, 4
     // as [1] + [2, 3, 4] - [3] === [1, 2, 4]
     c2.broadcast().to(['c:1', 'g:1allies']).except(['g:banned']).emit('//tick', {foo: payload});
@@ -242,5 +250,5 @@ redis.multi([
   setInterval(function() {
     // this should result in pushing to all clients 1, 2, 3, 4
     m4.broadcast().emit('//tick', {foo: payload});
-  }, 1200);
+  }, 1200);*/
 });

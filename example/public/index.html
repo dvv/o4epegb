@@ -1,0 +1,46 @@
+<!doctype html>
+<!--[if lt IE 7 ]><html class="ie ie6"><![endif]-->
+<!--[if IE 7 ]><html class="ie ie7"><![endif]-->
+<!--[if IE 8 ]><html class="ie ie8"><![endif]-->
+<!--[if (gte IE 9)|!(IE)]><html><![endif]-->
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<title></title>
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="css/main.css">
+	<link rel="stylesheet" href="css/960.css">
+	<link rel="stylesheet" href="css/style.css">
+	<script type="text/javascript" src="js/modernizr.js" charset="utf-8"></script>
+</head>
+<body>
+	<header id="header" class="container_16 clearfix">HEADER: <a href="auth">Fake auth to toggle sid cookie</a></header>
+	<nav id="nav" class="container_16 clearfix">
+	</nav>
+	<div id="content" class="container_16 clearfix"><!-- static authentication stuff here -->CONTENT
+	</div>
+	<footer id="footer" class="container_16 clearfix">FOOTER</footer>
+	<!-- N.B. don't optimize prematurely. just please don't! -->
+	<script type="text/javascript" src="js/json2.js" charset="utf-8"></script>
+	<script type="text/javascript" src="js/es5-shim.js" charset="utf-8"></script>
+	<script type="text/javascript" src="js/jquery-1.6.1.min.js" charset="utf-8"></script>
+	<script type="text/javascript" src="js/doT.js" charset="utf-8"></script>
+	<script type="text/javascript" charset="utf-8">
+ws = new WebSocket(document.location.href.replace(/^http/, 'ws'));
+ws.onopen = function() {
+	console.log('OPEN');
+};
+ws.onmessage = function(data) {
+	console.log('MESSAGE', data);
+};
+ws.onclose = function() {
+	console.log('CLOSE', arguments);
+};
+ws.onerror = function() {
+	console.log('ERROR', arguments);
+};
+	</script>
+</body>
+</html>
