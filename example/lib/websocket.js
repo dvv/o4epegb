@@ -15,8 +15,6 @@ var createHash = require('crypto').createHash;
 
 module.exports = function(req, socket, head) {
 
-  var server = this;
-
   // FIXME: we don't have `res`
   function fail(err) {
 console.error('FAIL', err && err.stack);
@@ -109,13 +107,15 @@ console.log('WARN: Invalid key: "' + k + '".');
     }
     // ack complete, put connection into utf8 mode
     this.setEncoding('utf8');
-    // attach parser
+    // create Socket
     Socket.call(this);
-    // emit connect event
-    server.emit('wsconnection', this);
     // pass the rest of buffer (if any) to new listener
-    if (req.head.length > 8) this.emit('data', req.head.substring(8));
+    this.buffer = req.head.substring(8);
     delete req.head;
+    // emit connection event
+    this.server.emit('wsconnection', this, req);
+    // start parser
+    this.emit('data', '');
   });
   // feed back data which we already have consumed, if any
   if (head.length) socket.emit('data', head.toString('binary'));
@@ -129,8 +129,7 @@ console.log('WARN: Invalid key: "' + k + '".');
 function Socket() {
   this.buffer = '';
   this.pos = 0;
-  this.parse = Socket.prototype.parse;
-  this.send = Socket.prototype.send;
+  for (var i in Socket.prototype) this[i] = Socket.prototype[i];
   this.on('message', function(message) {
 console.log('' + ' received message', message);
     this.server.emit('wsmessage', this, message);
@@ -206,4 +205,12 @@ Socket.prototype.send = function(data) {
   }
 
 console.log('' + ' writing', data);
+  return this;
+};
+
+Socket.prototype.disconnect = function() {
+  //if (this.state === Client.STATUS_READY) {
+    this.write('\xff\x00', 'binary');
+  //}
+  return this;
 };

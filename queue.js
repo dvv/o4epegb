@@ -1,48 +1,107 @@
 'use strict';
 
-var redis = require('redis').createClient();
+var db = require('redis').createClient();
 //var codec = {encode: JSON.stringify, decode: JSON.parse}; // should provide .encode/.decode
 var codec = require('bison'); // should provide .encode/.decode
 
+var slice = Array.prototype.slice;
+
 /**
  * 
- * Client -- an identified set of connections
+ * Socket -- a peer-to-peer connection
  * 
  */
 
-function Client(id, manager) {
+function Socket(id, manager) {
   this.id = id;
   this.manager = manager;
+}
+
+// inherit from EventEmitter
+Socket.prototype.__proto__ = process.EventEmitter.prototype;
+
+Socket.prototype.join = function(groups, cb) {
+	this.manager.join(this, [].concat(groups), cb);
+	return this;
+};
+
+Socket.prototype.leave = function(groups, cb) {
+	this.manager.leave(this, [].concat(groups), cb);
+	return this;
+};
+
+Socket.prototype.groups = function(cb) {
+	this.manager.member(this, cb);
+	return this;
+};
+
+Socket.prototype.load = function(cb) {
+	this.manager.load(this, cb);
+	return this;
+};
+
+Socket.prototype.auth = function(cb) {
+	this.manager.auth(this, cb);
+	return this;
+};
+
+Socket.prototype.send = function(payload, fn) {
+	console.error('SEND: ', this.id, payload);
+	if (fn) console.error('ACKNEEDED: ', this.id);
+	return this;
+};
+
+Socket.prototype.ack = function(aid) {
+  this.send({
+    aid: aid,
+    result: slice.call(arguments, 1)
+  });
+  return this;
+};
+
+/**
+ * 
+ * Group -- an identified set of connections
+ * 
+ */
+
+function Group(id, manager) {
+  this.id = id;
+  this.manager = manager;
+
   this.sockets = {};
 }
 
 // inherit from EventEmitter
-Client.prototype.__proto__ = process.EventEmitter.prototype;
+Group.prototype.__proto__ = process.EventEmitter.prototype;
 
-Client.prototype.socket = function(id) {
-  if (!this.sockets[id]) {
-    this.sockets[id] = new Socket(id, this);
-  }
-  return this.sockets[id];
+/*Group.prototype.join = function(sockets, cb) {
+	this.manager.add(this, sockets, cb);
+	return this;
 };
 
-/***
-//
-// manual acknowledgement
-// FIXME: think over
-//
-Client.prototype.ack = function(id) {
-  this.send({
-    ackId: id,
-    result: Array.prototype.slice.call(arguments, 1)
-  });
-  return this;
+Group.prototype.leave = function(sockets, cb) {
+	this.manager.remove(this, sockets, cb);
+	return this;
+};*/
+
+Group.prototype.members = function(cb) {
+	cb(null, this.sockets);
+	return this;
 };
-***/
+
+Group.prototype.event = function(event, payload, cb) {
+	for (var sid in this.sockets) {
+		this.sockets[sid].emit(event, payload);
+	}
+	this.emit(event, payload);
+	typeof cb === 'function' && cb();
+	return this;
+};
 
 /**
  * 
- * Manager -- clients director
+ * Manager -- groups director
  * 
  */
 
@@ -50,150 +109,240 @@ function Manager(id) {
   this.id = id;
   var sub = require('redis').createClient();
   sub.psubscribe('*'); sub.on('pmessage', this.handleMessage.bind(this));
-  this.db = require('redis').createClient();
-  // managed clients
-  this.clients = {};
+  // managed sockets
+  this.sockets = {};
+  // managed groups
+  this.groups = {};
   // named filtering functions
   this.filters = {};
+  //
+  this.on('wsconnection', function(sock) {
+    var socket = this.socket(this.nonce());
+  });
+  this.on('wsclose', function(sock, forced) {
+    if (forced) {
+      // remove from groups etc.
+    } else {
+      // wait a bit in case it reconnnects?
+    }
+    delete this.sockets[sock.id];
+  });
 }
 
 // inherit from EventEmitter
 Manager.prototype.__proto__ = process.EventEmitter.prototype;
 
+Manager.prototype.nonce = function() {
+  return Math.random().toString().substring(2);
+};
+
 Manager.prototype.handleMessage = function(pattern, channel, message) {
   var self = this;
-  var db = this.db;
   // deserialize message
   message = codec.decode(message);
-  //
-  // compose list of recipients
-  //
+  // get list of relevant groups
+  this.select(message.f).get(function(err, gids) {
+		if (err) return;
+    // distribute payload
+    var payload = message.d;
+    for (var i = 0, l = gids.length; i < l; ++i) {
+      var group = self.groups[gids[i]];
+      if (group) group.event(channel, payload);
+    }
+  }, this.filters);
+};
+
+Manager.prototype.join = function(socket, groups, cb) {
+///console.log('MJOIN', arguments);
+	var self = this;
+	var sid = socket.id;
+	var commands = groups.map(function(group) {
+		self.group(group).sockets[sid] = socket;
+		return ['sadd', group, sid];
+	}).concat([['sadd', sid + ':g'].concat(groups)]);
+	// TODO: publish '//join' for each joined group
+	db.multi(commands).exec(cb);
+	return this;
+};
+
+Manager.prototype.leave = function(socket, groups, cb) {
+///console.log('MLEAVE', arguments);
+	var self = this;
+	var sid = socket.id;
+	var commands = groups.map(function(group) {
+		var g = self.groups[group];
+		g && delete g.sockets[sid];
+		return ['srem', group, sid];
+	}).concat([['srem', sid + ':g'].concat(groups)]);
+	// TODO: publish '//join' for each left group
+	db.multi(commands).exec(cb);
+	return this;
+};
+
+Manager.prototype.member = function(socket, cb) {
+	var sid = socket.id;
+	db.smembers(sid + ':g', cb);
+	return this;
+};
+
+Manager.prototype.socket = function(id) {
+  if (!this.sockets[id]) {
+    this.sockets[id] = new Socket(id, this);
+  }
+  return this.sockets[id];
+};
+
+Manager.prototype.load = function(socket, cb) {
+	this.member(socket, function(err, groups) {
+		if (err) {
+			cb(err);
+		} else {
+			socket.manager.join(socket, groups, cb);
+		}
+	});
+	return this;
+};
+
+Manager.prototype.group = function(id) {
+  if (!this.groups[id]) {
+    this.groups[id] = new Group(id, this);
+  }
+  return this.groups[id];
+};
+
+/**
+ * 
+ * Select plugin
+ * 
+ */
+
+function Select(to, only, not, flt) {
+	if (to === Object(to) && !Array.isArray(to)) {
+		this.rules = to;
+	} else {
+		this.rules = {};
+		this.to(to);
+		this.only(only);
+		this.not(not);
+		this.filter(flt);
+	}
+  return this;
+}
+
+Select.prototype.to = function(to) {
+  // list of groups to union
+  if (to) {
+		if (!this.rules.or) this.rules.or = [];
+		this.rules.or = this.rules.or.concat(Array.isArray(to) ?
+			to :
+			slice.call(arguments));
+	}
+  return this;
+};
+
+Select.prototype.only = function(and) {
+  // list of groups to intersect
+  if (and) {
+		if (!this.rules.and) this.rules.and = [];
+		this.rules.and = this.rules.and.concat(Array.isArray(and) ?
+			and :
+			slice.call(arguments));
+	}
+  return this;
+};
+
+Select.prototype.not = function(not) {
+  // list of groups to exclude
+  if (not) {
+		if (!this.rules.not) this.rules.not = [];
+		this.rules.not = this.rules.not.concat(Array.isArray(not) ?
+			not :
+			slice.call(arguments));
+	}
+  return this;
+};
+
+Select.prototype.filter = function(flt) {
+  // optional name of final filtering function
+  // N.B. define these functions in `this.manager.filters` hash
+  if (flt) this.rules.flt = flt;
+  return this;
+};
+
+Select.prototype.get = function(fn, filters) {
+  var self = this;
   var commands = [];
-//console.log('RECV', message.event, message.filter);
   // short-circuit simple cases
-  if (!message.filter.or) {
+  if (!this.rules.or) {
     commands.push(['smembers', 'g:all']);
-  } else if (typeof message.filter.or === 'string') {
-    commands.push(['smembers', message.filter.or]);
   } else {
     var tempSetName = 'TODO:unique-and-nonce,but,maybe,a,join,of,message.or';
-    commands.push(['sunionstore', tempSetName].concat(message.filter.or));
-    if (message.filter.and) {
-      commands.push(['sinterstore', tempSetName, tempSetName].concat(message.filter.and));
+    commands.push(['sunionstore', tempSetName].concat(this.rules.or));
+    if (this.rules.and) {
+      commands.push(['sinterstore', tempSetName, tempSetName].concat(this.rules.and));
     }
-    if (message.filter.not) {
-      commands.push(['sdiffstore', tempSetName, tempSetName].concat(message.filter.not));
+    if (this.rules.not) {
+      commands.push(['sdiffstore', tempSetName, tempSetName].concat(this.rules.not));
     }
     // TODO: once we find a way to encode and/or/not in reasonable short string
     // we can use it as resulting set name and set expire on resulting set and reuse it.
     //db.expire(tempSetName, 1); // valid for 1 second
     commands.push(['smembers', tempSetName]);
   }
-//console.log('COMMANDS', commands);
+///console.log('COMMANDS', commands);
   db.multi(commands).exec(function(err, results) {
     // FIXME: until we don't use expiry, we free resulting set immediately
     if (tempSetName) db.del(tempSetName);
     // error means we are done, no need to bubble
-    if (err) return;
+    if (err) {
+			fn(err);
+			return;
+		}
     // get resulting set members
-    // N.B. redis set operations guarantee we have no duplicates on client level
-    var cids = results[results.length - 1];
-//console.log('CIDS', cids);
+    // N.B. redis set operations guarantee we have no duplicates on group level
+    var gids = results[results.length - 1];
+///console.log('GIDS', gids, self.rules);
     // apply custom named filter, if any
-    // N.B. this is very expensive option since we have to dereference client data given cid
+    // N.B. this is very expensive option since we have to dereference groups data given group id
     // FIXME: can this data ever be obtained async?
-    var fn;
-    if (message.filter.flt && (fn = self.filters[message.filter.flt])) {
-      cids = cids.filter(fn);
+    var flt;
+    if (self.rules.flt && filters && (flt = filters[self.rules.flt])) {
+      gids = gids.filter(flt);
     }
-    // distribute payload to relevant clients
-    var payload = message.payload;
-    for (var i = 0, l = cids.length; i < l; ++i) {
-      var client = self.clients[cids[i]];
-      if (client) client.emit(message.event, message.payload);
-    }
+    //
+    fn(null, gids);
   });
-};
-
-Manager.prototype.client = function(id) {
-  if (!this.clients[id]) {
-    this.clients[id] = new Client(id, this);
-  }
-  return this.clients[id];
-};
-
-/**
- * 
- * Broadcast plugin
- * 
- */
-
-function Broadcast(to, only, except, flt) {
-  this.filter = {};
-  this.to(to);
-  this.only(only);
-  this.except(except);
-  this.custom(flt);
-  return this;
-}
-
-Broadcast.prototype.to = function(to) {
-  // recepient group(s): string denotes single group,
-  // array denotes multiple groups
-  if (to) this.filter.or = to;
   return this;
 };
 
-Broadcast.prototype.only = function(and) {
-  // list of groups to intersect
-  if (and) this.filter.and = and;
-  return this;
-};
-
-Broadcast.prototype.except = function(not) {
-  // list of groups to exclude
-  if (not) this.filter.not = not;
-  return this;
-};
-
-Broadcast.prototype.custom = function(flt) {
-  // optional name of final filtering function
-  // N.B. define these functions in `this.filters` hash
-  if (flt) this.filter.flt = flt;
-  return this;
-};
-
-Broadcast.prototype.emit = function(event, payload) {
+Select.prototype.emit = function(event, data) {
   // vanilla broadcast fields
   var message = {
-    // event name
-    event: event,
-    // data
-    payload: payload
+    d: data
   };
-  // apply filter, if any
-  if (this.filter) {
-    message.filter = this.filter;
-    // reset used filter
-    delete this.filter;
+  // apply filter rules, if any
+  if (this.rules) {
+    message.f = this.rules;
+    // reset used rules
+    delete this.rules;
   }
   // publish event to corresponding channel
   var s = codec.encode(message);
-//console.log('EMIT', event, message.filter);
+//console.log('EMIT', event, message.rules);
   // FIXME: consider returning publish return value
   // to support kinda "source quench" to not flood the channel
-  this.manager.db.publish(event, s);
+  db.publish(event, s);
   return this;
 };
 
-Manager.prototype.broadcast = function(or, and, not, flt) {
-  var bcast = new Broadcast(or, and, not, flt);
-  bcast.manager = this;
-  return bcast;
+Manager.prototype.select = function(or, and, not, flt) {
+  var selector = new Select(or, and, not, flt);
+  selector.manager = this;
+  return selector;
 };
 
-Client.prototype.broadcast = function() {
-  return this.manager.broadcast.apply(this.manager, arguments);
+Group.prototype.select = function() {
+  return this.manager.select.apply(this.manager, arguments);
 };
 
 /**
@@ -214,41 +363,52 @@ var m4 = new Manager(4000);
 // testing broadcasts
 //
 var payload = '0'; for (var i = 0; i < 2; ++i) payload += payload;
-redis.multi([
+db.multi([
   ['flushall'],
   // test groups
-  ['sadd', 'c:1', 'c:1'], // N.B. client is a group as well
+  /*['sadd', 'c:1', 'c:1'],
+  ['sadd', 'c:2', 'c:2'],
+  ['sadd', 'c:3', 'c:3'],
+  ['sadd', 'c:4', 'c:4'],*/
+  // TODO: g:all should be handled automatically
   ['sadd', 'g:all', 'c:1', 'c:2', 'c:3', 'c:4'],
   ['sadd', 'g:1allies', 'c:2', 'c:3', 'c:4'],
   ['sadd', 'g:jslovers', 'c:1', 'c:3'],
   ['sadd', 'g:banned', 'c:3']
 ]).exec(function() {
 
-  function cc(mgr, id, connid) {
-    var client = mgr.client(id);
-    client.on('//tick', function() {
-      console.log('TICK for client', mgr.id + ':' + id);
+  function cc(mgr, id) {
+    var socket = mgr.socket(id);
+    socket.join(id);
+    socket.on('//tick', function() {
+      console.log('TICK for socket', this.manager.id + ':' + this.id);
     });
-    client.socket(connid);
-    return client;
+    return socket;
   }
 
   var c1 = cc(m1, 'c:1');
   var c2 = cc(m2, 'c:2'); cc(m2, 'c:1');
   var c3 = cc(m3, 'c:3');
   var c4 = cc(m4, 'c:4'); cc(m4, 'c:1');
-  setInterval(function() {
-    // this should result in pushing to client 1 only
+console.error('MS', m1, m2, m3, m4);
+/*  setInterval(function() {
+    // this should result in pushing to group 1 only
     // as ([1] + [2, 3, 4]) * [1, 3] - [3] === [1]
     c1.broadcast(['c:1', 'g:1allies'], ['g:jslovers'], ['g:banned']).emit('//tick', {foo: payload});
-  }, 1000);
+  }, 1000);*/
 /*  setInterval(function() {
-    // this should result in pushing to clients 1, 2, 4
+    // this should result in pushing to groups 1, 2
+    // as [1] + [2, 3, 4] - [3, 4] === [1, 2]
+    //c2.select().to(['c:1', 'g:1allies']).not('g:banned', 'c:4').emit('//tick', {foo: payload});
+    c2.select().to(['c:1']).to('g:1allies').not('g:banned', 'c:4').emit('//tick', {foo: payload});
+  }, 1000);*/
+/*  setInterval(function() {
+    // this should result in pushing to groups 1, 2, 4
     // as [1] + [2, 3, 4] - [3] === [1, 2, 4]
-    c2.broadcast().to(['c:1', 'g:1allies']).except(['g:banned']).emit('//tick', {foo: payload});
-  }, 1100);
+    c2.select().to(['c:1', 'g:1allies']).not(['g:banned']).emit('//tick', {foo: payload});
+  }, 1100);*/
   setInterval(function() {
-    // this should result in pushing to all clients 1, 2, 3, 4
-    m4.broadcast().emit('//tick', {foo: payload});
-  }, 1200);*/
+    // this should result in pushing to all groups 1, 2, 3, 4
+    m4.select('c:1').emit('//tick', {foo: payload});
+  }, 1200);
 });

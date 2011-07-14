@@ -76,11 +76,15 @@ function Node(port) {
   console.log('Listening to http://*:' + port + '. Use Ctrl+C to stop.');
   // handle WebSocket connections
   this.http.on('upgrade', require('./lib/websocket'));
-  this.http.on('wsconnection', function(socket) {
+  this.http.on('close', function() {
+    this.removeAllListeners('upgrade');
+  });
+  this.http.on('wsconnection', function(socket, req) {
     console.log('CONNECTION', socket);
   });
   this.http.on('wsmessage', function(socket, message) {
     console.log('MESSAGE', message);
+    socket.send(message + message);
   });
   this.http.on('wsclose', function(socket, forced) {
     console.log('CLOSED', forced);
