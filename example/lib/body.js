@@ -9,9 +9,7 @@
 
 var parseUrl = require('url').parse;
 var Path = require('path');
-
-// regexp to check for valid IP string
-var REGEXP_IP = /^\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}$/;
+var isIP = require('net').isIP;
 
 //
 // fill req.body with object reflecting content of request body
@@ -94,7 +92,7 @@ module.exports = function setup(options) {
 		// honor X-Forwarded-For: possibly set by a reverse proxy
 		var h;
 		if (h = req.headers['x-forwarded-for']) {
-			if (REGEXP_IP.test(h)) {
+			if (isIP(h)) {
 				req.socket.remoteAddress = h;
 			}
 			// forget the source of knowledge
