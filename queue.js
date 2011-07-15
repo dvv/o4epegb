@@ -15,47 +15,53 @@ var slice = Array.prototype.slice;
 function Socket(id, manager) {
   this.id = id;
   this.manager = manager;
+
+  // TODO: think over
+  this.acks = {};
+  this.on('ack', function(aid, args) {
+    var ack = this.acks[aid];
+    if (ack) {
+      ack.apply(this, args);
+      delete this.acks[aid];
+    }
+  });
+
 }
 
 // inherit from EventEmitter
 Socket.prototype.__proto__ = process.EventEmitter.prototype;
 
-Socket.prototype.join = function(groups, cb) {
-	this.manager.join(this, [].concat(groups), cb);
-	return this;
-};
-
-Socket.prototype.leave = function(groups, cb) {
-	this.manager.leave(this, [].concat(groups), cb);
-	return this;
-};
-
-Socket.prototype.groups = function(cb) {
-	this.manager.member(this, cb);
-	return this;
-};
-
-Socket.prototype.load = function(cb) {
-	this.manager.load(this, cb);
-	return this;
-};
-
-Socket.prototype.auth = function(cb) {
-	this.manager.auth(this, cb);
-	return this;
-};
-
 Socket.prototype.send = function(payload, fn) {
-	console.error('SEND: ', this.id, payload);
-	if (fn) console.error('ACKNEEDED: ', this.id);
-	return this;
+  console.error('SEND: ', this.id, payload);
+  if (fn) console.error('ACKNEEDED: ', this.id);
+  return this;
 };
 
 Socket.prototype.ack = function(aid) {
   this.send({
     aid: aid,
-    result: slice.call(arguments, 1)
+    args: slice.call(arguments, 1)
   });
+  return this;
+};
+
+Socket.prototype.auth = function(cb) {
+  this.manager.auth(this, cb);
+  return this;
+};
+
+Socket.prototype.join = function(groups, cb) {
+  this.manager.join(this, [].concat(groups), cb);
+  return this;
+};
+
+Socket.prototype.leave = function(groups, cb) {
+  this.manager.leave(this, [].concat(groups), cb);
+  return this;
+};
+
+Socket.prototype.groups = function(cb) {
+  this.manager.member(this, cb);
   return this;
 };
 
@@ -76,27 +82,27 @@ function Group(id, manager) {
 Group.prototype.__proto__ = process.EventEmitter.prototype;
 
 /*Group.prototype.join = function(sockets, cb) {
-	this.manager.add(this, sockets, cb);
-	return this;
+  this.manager.add(this, sockets, cb);
+  return this;
 };
 
 Group.prototype.leave = function(sockets, cb) {
-	this.manager.remove(this, sockets, cb);
-	return this;
+  this.manager.remove(this, sockets, cb);
+  return this;
 };*/
 
 Group.prototype.members = function(cb) {
-	cb(null, this.sockets);
-	return this;
+  cb(null, this.sockets);
+  return this;
 };
 
 Group.prototype.event = function(event, payload, cb) {
-	for (var sid in this.sockets) {
-		this.sockets[sid].emit(event, payload);
-	}
-	this.emit(event, payload);
-	typeof cb === 'function' && cb();
-	return this;
+  for (var sid in this.sockets) {
+    this.sockets[sid].emit(event, payload);
+  }
+  this.emit(event, payload);
+  typeof cb === 'function' && cb();
+  return this;
 };
 
 /**
@@ -142,7 +148,7 @@ Manager.prototype.handleMessage = function(pattern, channel, message) {
   message = codec.decode(message);
   // get list of relevant groups
   this.select(message.f).get(function(err, gids) {
-		if (err) return;
+    if (err) return;
     // distribute payload
     var payload = message.d;
     for (var i = 0, l = gids.length; i < l; ++i) {
@@ -154,35 +160,35 @@ Manager.prototype.handleMessage = function(pattern, channel, message) {
 
 Manager.prototype.join = function(socket, groups, cb) {
 ///console.log('MJOIN', arguments);
-	var self = this;
-	var sid = socket.id;
-	var commands = groups.map(function(group) {
-		self.group(group).sockets[sid] = socket;
-		return ['sadd', group, sid];
-	}).concat([['sadd', sid + ':g'].concat(groups)]);
-	// TODO: publish '//join' for each joined group
-	db.multi(commands).exec(cb);
-	return this;
+  var self = this;
+  var sid = socket.id;
+  var commands = groups.map(function(group) {
+    self.group(group).sockets[sid] = socket;
+    return ['sadd', group, sid];
+  }).concat([['sadd', sid + ':g'].concat(groups)]);
+  // TODO: publish '//join' for each joined group
+  db.multi(commands).exec(cb);
+  return this;
 };
 
 Manager.prototype.leave = function(socket, groups, cb) {
 ///console.log('MLEAVE', arguments);
-	var self = this;
-	var sid = socket.id;
-	var commands = groups.map(function(group) {
-		var g = self.groups[group];
-		g && delete g.sockets[sid];
-		return ['srem', group, sid];
-	}).concat([['srem', sid + ':g'].concat(groups)]);
-	// TODO: publish '//join' for each left group
-	db.multi(commands).exec(cb);
-	return this;
+  var self = this;
+  var sid = socket.id;
+  var commands = groups.map(function(group) {
+    var g = self.groups[group];
+    g && delete g.sockets[sid];
+    return ['srem', group, sid];
+  }).concat([['srem', sid + ':g'].concat(groups)]);
+  // TODO: publish '//join' for each left group
+  db.multi(commands).exec(cb);
+  return this;
 };
 
 Manager.prototype.member = function(socket, cb) {
-	var sid = socket.id;
-	db.smembers(sid + ':g', cb);
-	return this;
+  var sid = socket.id;
+  db.smembers(sid + ':g', cb);
+  return this;
 };
 
 Manager.prototype.socket = function(id) {
@@ -192,15 +198,16 @@ Manager.prototype.socket = function(id) {
   return this.sockets[id];
 };
 
-Manager.prototype.load = function(socket, cb) {
-	this.member(socket, function(err, groups) {
-		if (err) {
-			cb(err);
-		} else {
-			socket.manager.join(socket, groups, cb);
-		}
-	});
-	return this;
+Manager.prototype.auth = function(socket, cb) {
+  var sid = socket.id;
+  var self = this;
+  this.member(socket, function(err, groups) {
+    groups.forEach(function(group) {
+      self.group(group).sockets[sid] = socket;
+    });
+    typeof cb === 'function' && cb(err, groups);
+  });
+  return this;
 };
 
 Manager.prototype.group = function(id) {
@@ -217,48 +224,48 @@ Manager.prototype.group = function(id) {
  */
 
 function Select(to, only, not, flt) {
-	if (to === Object(to) && !Array.isArray(to)) {
-		this.rules = to;
-	} else {
-		this.rules = {};
-		this.to(to);
-		this.only(only);
-		this.not(not);
-		this.filter(flt);
-	}
+  if (to === Object(to) && !Array.isArray(to)) {
+    this.rules = to;
+  } else {
+    this.rules = {};
+    this.to(to);
+    this.only(only);
+    this.not(not);
+    this.filter(flt);
+  }
   return this;
 }
 
 Select.prototype.to = function(to) {
   // list of groups to union
   if (to) {
-		if (!this.rules.or) this.rules.or = [];
-		this.rules.or = this.rules.or.concat(Array.isArray(to) ?
-			to :
-			slice.call(arguments));
-	}
+    if (!this.rules.or) this.rules.or = [];
+    this.rules.or = this.rules.or.concat(Array.isArray(to) ?
+      to :
+      slice.call(arguments));
+  }
   return this;
 };
 
 Select.prototype.only = function(and) {
   // list of groups to intersect
   if (and) {
-		if (!this.rules.and) this.rules.and = [];
-		this.rules.and = this.rules.and.concat(Array.isArray(and) ?
-			and :
-			slice.call(arguments));
-	}
+    if (!this.rules.and) this.rules.and = [];
+    this.rules.and = this.rules.and.concat(Array.isArray(and) ?
+      and :
+      slice.call(arguments));
+  }
   return this;
 };
 
 Select.prototype.not = function(not) {
   // list of groups to exclude
   if (not) {
-		if (!this.rules.not) this.rules.not = [];
-		this.rules.not = this.rules.not.concat(Array.isArray(not) ?
-			not :
-			slice.call(arguments));
-	}
+    if (!this.rules.not) this.rules.not = [];
+    this.rules.not = this.rules.not.concat(Array.isArray(not) ?
+      not :
+      slice.call(arguments));
+  }
   return this;
 };
 
@@ -295,9 +302,9 @@ Select.prototype.get = function(fn, filters) {
     if (tempSetName) db.del(tempSetName);
     // error means we are done, no need to bubble
     if (err) {
-			fn(err);
-			return;
-		}
+      fn(err);
+      return;
+    }
     // get resulting set members
     // N.B. redis set operations guarantee we have no duplicates on group level
     var gids = results[results.length - 1];
