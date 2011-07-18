@@ -7,8 +7,15 @@
 
 var Stack = require('./lib');
 var sessionHandler, restHandler;
-var stack = [
+function stack() {
+return [
   Stack.health(),
+
+function(req, res, next) {
+console.error('HEAD', req.method, req.url);
+next();
+},
+
   // serve static content
   Stack.static(__dirname + '/public', 'index.html', {
     maxAge: 0,
@@ -21,12 +28,6 @@ var stack = [
     path: '/',
     timeout: 86400000
   }),
-
-/*function(req, res, next) {
-console.error('HEAD', req.method, req.url, req.headers);
-next();
-},*/
-
   // process request body
   Stack.body(),
   // process RESTful access
@@ -37,6 +38,7 @@ next();
   auth(),
   //authHandler,
 ];
+}
 
 /**
  * Handle authentication
@@ -72,7 +74,7 @@ function auth(url) {
 
 function Node(port) {
   // web server
-  this.http = Stack.listen(stack, {}, port);
+  this.http = Stack.listen(stack(), {}, port);
   console.log('Listening to http://*:' + port + '. Use Ctrl+C to stop.');
   // handle WebSocket connections
   this.http.on('upgrade', require('./lib/websocket'));
@@ -95,9 +97,9 @@ function Node(port) {
 }
 
 var s1 = new Node(3001);
-/*var s2 = new Node(3002);
+var s2 = new Node(3002);
 var s3 = new Node(3003);
-var s4 = new Node(3004);*/
+var s4 = new Node(3004);
 
 var repl = require('repl').start('node> ').context;
 process.stdin.on('close', process.exit);

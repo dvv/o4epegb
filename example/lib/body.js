@@ -5,7 +5,7 @@
  * Copyright(c) 2011 Vladimir Dronnikov <dronnikov@gmail.com>
  * MIT Licensed
  *
-*/
+ */
 
 var parseUrl = require('url').parse;
 var Path = require('path');

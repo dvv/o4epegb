@@ -5,7 +5,7 @@
  * Copyright(c) 2011 Vladimir Dronnikov <dronnikov@gmail.com>
  * MIT Licensed
  *
-*/
+ */
 
 //
 // TODO: consider 'request' repo -- just reuse bodyParser
