@@ -18,10 +18,11 @@ function Socket(id, manager) {
 
   // TODO: think over
   this.acks = {};
-  this.on('ack', function(aid, args) {
+  this.on('ack', function(aid) {
     var ack = this.acks[aid];
     if (ack) {
-      ack.apply(this, args);
+      ack.apply(this, slice.call(arguments, 1));
+      console.error('ACKFIRED: ', this.id, aid);
       delete this.acks[aid];
     }
   });
@@ -31,22 +32,22 @@ function Socket(id, manager) {
 // inherit from EventEmitter
 Socket.prototype.__proto__ = process.EventEmitter.prototype;
 
-Socket.prototype.send = function(payload, fn) {
-  console.error('SEND: ', this.id, payload);
-  if (fn) console.error('ACKNEEDED: ', this.id);
+Socket.prototype.send = function(message, fn) {
+  console.error('SEND: ', this.id, message);
+  if (fn) {
+    var aid = this.manager.nonce();
+    console.error('ACKNEEDED: ', this.id, aid);
+    this.acks[aid] = fn;
+    // TODO: set expiry on this.acks[aid]? what would be a sane timeout?
+  }
   return this;
 };
 
 Socket.prototype.ack = function(aid) {
   this.send({
-    aid: aid,
-    args: slice.call(arguments, 1)
+    event: 'ack',
+    args: slice.call(arguments)
   });
-  return this;
-};
-
-Socket.prototype.auth = function(cb) {
-  this.manager.auth(this, cb);
   return this;
 };
 
@@ -122,10 +123,10 @@ function Manager(id) {
   // named filtering functions
   this.filters = {};
   //
-  this.on('wsconnection', function(sock) {
+  this.on('connection', function(rawsock) {
     var socket = this.socket(this.nonce());
   });
-  this.on('wsclose', function(sock, forced) {
+  this.on('close', function(sock, forced) {
     if (forced) {
       // remove from groups etc.
     } else {
@@ -165,7 +166,8 @@ Manager.prototype.join = function(socket, groups, cb) {
   var commands = groups.map(function(group) {
     self.group(group).sockets[sid] = socket;
     return ['sadd', group, sid];
-  }).concat([['sadd', sid + ':g'].concat(groups)]);
+  });
+  groups.length && commands.push(['sadd', sid + ':g'].concat(groups));
   // TODO: publish '//join' for each joined group
   db.multi(commands).exec(cb);
   return this;
@@ -179,8 +181,9 @@ Manager.prototype.leave = function(socket, groups, cb) {
     var g = self.groups[group];
     g && delete g.sockets[sid];
     return ['srem', group, sid];
-  }).concat([['srem', sid + ':g'].concat(groups)]);
-  // TODO: publish '//join' for each left group
+  });
+  groups.length && commands.push(['srem', sid + ':g'].concat(groups));
+  // TODO: publish '//leave' for each left group
   db.multi(commands).exec(cb);
   return this;
 };
@@ -348,6 +351,10 @@ Manager.prototype.select = function(or, and, not, flt) {
   return selector;
 };
 
+Socket.prototype.select = function() {
+  return this.manager.select.apply(this.manager, arguments);
+};
+
 Group.prototype.select = function() {
   return this.manager.select.apply(this.manager, arguments);
 };
@@ -385,7 +392,8 @@ db.multi([
 ]).exec(function() {
 
   function cc(mgr, id) {
-    var socket = mgr.socket(id);
+    //var socket = mgr.socket(id);
+    mgr.socket.emit(id);
     socket.join(id);
     socket.on('//tick', function() {
       console.log('TICK for socket', this.manager.id + ':' + this.id);
