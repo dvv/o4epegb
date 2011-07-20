@@ -83,6 +83,7 @@ function Node(port) {
   });
   this.http.on('wsconnection', function(socket, req) {
     console.log('CONNECTION', socket);
+    repl.s = socket;
   });
   this.http.on('wsmessage', function(socket, message) {
     console.log('MESSAGE', message);
