@@ -34,6 +34,7 @@
   </script>
 	<script type="text/javascript" src="js/flash/web_socket.js" charset="utf-8"></script>
 
+	<script type="text/javascript" src="js/socket.js" charset="utf-8"></script>
 	<script type="text/javascript" charset="utf-8">
 // warn about possibility of enabling native WebSockets
 if (WebSocket && WebSocket.__initialize) {
@@ -43,63 +44,11 @@ if (WebSocket && WebSocket.__initialize) {
     opera && console.warn('in about:config set "Enable WebSockets" to true and restart browser');
   // TODO: IE ;)
 }
-function Socket() {
-  this.buffer = [];
-}
-Socket.prototype.connect = function() {
-  var self = this;
-  var ws = this.ws = new WebSocket(document.location.href.replace(/^http/, 'ws'));
-  ws.onopen = function() {
-    self.reconnectTimeout = 125;
-    self.open = true;
-    console.log('OPEN');
-    self.flush();
-  };
-  ws.onmessage = function(data) {
-    console.log('MESSAGE', data);
-  };
-  ws.onclose = function() {
-    console.log('CLOSE?', this.open);
-    if (self.reconnectTimeout) {
-      setTimeout(function() {
-        console.log('RECONNECTING');
-        self.connect();
-      }, self.reconnectTimeout *= 2);
-    }
-  };
-  ws.onerror = function() {
-    console.log('ERROR', arguments);
-  };
-  return this;
-};
-Socket.prototype.disconnect = function() {
-  self.reconnectTimeout = false;
-  self.open = false;
-  this.ws.close();
-  return this;
-};
-Socket.prototype.send = function(message) {
-  this.buffer.push(message);
-  this.flush();
-  return this;
-};
-Socket.prototype.flush = function() {
-  var self = this;
-  while (this.buffer.length && this.open) {
-    var message = this.buffer[0];
-    if (!this.ws.send(message)) {
-      setTimeout(function() {
-        self.flush();
-      }, self.flushTimeout);
-      break;
-    }
-    this.buffer.pop();
-  }
-  return this;
-};
-//var ws = new WebSocket('wss://local.host');//document.location.href.replace(/^http/, 'ws'));
 var ws = new Socket();
+// N.B. we can send before connection
+for (var i = 0; i < 10; ++i) ws.send('a' + i);
 ws.connect();
+
 	</script>
 </body>
 </html>

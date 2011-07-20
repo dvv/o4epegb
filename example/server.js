@@ -87,7 +87,7 @@ function Node(port) {
   });
   this.http.on('wsmessage', function(socket, message) {
     console.log('MESSAGE', message);
-    socket.send(message + message);
+    //socket.send(message + message);
   });
   this.http.on('wsclose', function(socket, forced) {
     console.log('CLOSED', forced);
