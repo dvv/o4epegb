@@ -46,7 +46,7 @@ if (WebSocket && WebSocket.__initialize) {
 }
 var ws = new Socket();
 // N.B. we can send before connection
-for (var i = 0; i < 10; ++i) ws.send('a' + i);
+//for (var i = 0; i < 10; ++i) ws.send('a' + i);
 ws.on('error', function() {
   console.log('ERROR:', this, arguments);
 });
