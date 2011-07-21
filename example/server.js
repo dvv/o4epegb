@@ -82,7 +82,7 @@ function Node(port) {
     this.removeAllListeners('upgrade');
   });
   this.http.on('wsconnection', function(socket, req) {
-    console.log('CONNECTION', socket);
+    console.log('CONNECTION', socket.id);
     repl.s = socket;
   });
   this.http.on('wsmessage', function(socket, message) {
