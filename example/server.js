@@ -81,8 +81,8 @@ function Node(port) {
   this.http.on('close', function() {
     this.removeAllListeners('upgrade');
   });
-  this.http.on('wsconnection', function(socket, req) {
-    console.log('CONNECTION', socket.id);
+  /***this.http.on('wsconnection', function(socket, req) {
+    console.log('CONNECTION', socket.ws.id);
     repl.s = socket;
   });
   this.http.on('wsmessage', function(socket, message) {
@@ -94,7 +94,7 @@ function Node(port) {
   });
   this.http.on('wserror', function(socket, error) {
     console.log('ERROR', error);
-  });
+  });***/
 }
 
 var s1 = new Node(3001);

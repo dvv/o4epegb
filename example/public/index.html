@@ -44,22 +44,25 @@ if (WebSocket && WebSocket.__initialize) {
     opera && console.warn('in about:config set "Enable WebSockets" to true and restart browser');
   // TODO: IE ;)
 }
-var ws = new Socket();
+var ws = new Connection();
 // N.B. we can send before connection
-//for (var i = 0; i < 10; ++i) ws.send('a' + i);
+for (var i = 0; i < 10; ++i) ws.send('a' + i);
 ws.on('error', function() {
-  console.log('ERROR:', this, arguments);
+  console.log('ERROR:', new Date(), this, arguments);
 });
 ws.on('connecting', function() {
-  console.log('CONNECTING:', this, arguments);
+  console.log('CONNECTING:', new Date(), this, arguments);
+});
+ws.on('authorized', function() {
+  console.log('AUTHORIZED:', new Date(), this, arguments);
 });
 ws.on('connect', function() {
-  console.log('CONNECT:', this, arguments);
+  console.log('CONNECT:', new Date(), this, arguments);
 });
 ws.on('disconnect', function() {
-  console.log('DISCONNECT:', this, arguments);
+  console.log('DISCONNECT:', new Date(), this, arguments);
 });
-ws.connect();
+ws.open();
 
 	</script>
 </body>
