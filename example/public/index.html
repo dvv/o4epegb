@@ -34,7 +34,7 @@
   </script>
 	<script type="text/javascript" src="js/flash/web_socket.js" charset="utf-8"></script>
 
-	<script type="text/javascript" src="js/socket.js" charset="utf-8"></script>
+	<script type="text/javascript" src="js/connection.js" charset="utf-8"></script>
 	<script type="text/javascript" charset="utf-8">
 // warn about possibility of enabling native WebSockets
 if (WebSocket && WebSocket.__initialize) {
@@ -53,8 +53,8 @@ ws.on('error', function() {
 ws.on('connecting', function() {
   console.log('CONNECTING:', new Date(), this, arguments);
 });
-ws.on('authorized', function() {
-  console.log('AUTHORIZED:', new Date(), this, arguments);
+ws.on('data', function() {
+  console.log('DATA:', new Date(), this, arguments);
 });
 ws.on('connect', function() {
   console.log('CONNECT:', new Date(), this, arguments);

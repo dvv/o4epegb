@@ -91,10 +91,16 @@ function Node(port) {
   });
   this.http.on('wsclose', function(conn, forced) {
     console.log('CLOSED', forced);
+  });***/
+  this.http.on('wsdata', function(conn, data) {
+    console.log('DATA', arguments);
   });
   this.http.on('wserror', function(conn, error) {
     console.log('ERROR', error);
-  });***/
+  });
+  this.http.on('clientError', function() {
+    console.log('CLERROR', arguments);
+  });
 }
 
 var s1 = new Node(3001);
