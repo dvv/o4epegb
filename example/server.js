@@ -81,18 +81,18 @@ function Node(port) {
   this.http.on('close', function() {
     this.removeAllListeners('upgrade');
   });
-  /***this.http.on('wsconnection', function(socket, req) {
-    console.log('CONNECTION', socket.ws.id);
-    repl.s = socket;
+  this.http.on('wsconnection', function(conn) {
+    console.log('CONNECTION', conn._s.id, conn._s.headers);
+    repl.s = conn;
   });
-  this.http.on('wsmessage', function(socket, message) {
+  /***this.http.on('wsmessage', function(conn, message) {
     console.log('MESSAGE', message);
     //socket.send(message + message);
   });
-  this.http.on('wsclose', function(socket, forced) {
+  this.http.on('wsclose', function(conn, forced) {
     console.log('CLOSED', forced);
   });
-  this.http.on('wserror', function(socket, error) {
+  this.http.on('wserror', function(conn, error) {
     console.log('ERROR', error);
   });***/
 }
