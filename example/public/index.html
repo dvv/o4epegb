@@ -72,7 +72,7 @@ function Conn() {
   });
   ws.open();
   // mimick network failures
-  setInterval(function() {ws.socket.close();}, 5000);
+  ///setInterval(function() {ws.socket.close();}, 5000);
   return ws;
 }
 var ws = new Conn();
