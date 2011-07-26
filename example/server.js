@@ -82,8 +82,9 @@ function Node(port) {
     this.removeAllListeners('upgrade');
   });
   this.http.on('wsconnection', function(conn) {
-    console.log('CONNECTION', conn._s.id, conn._s.headers);
+    console.log('CONNECTION', conn.id);//, conn.socket.headers);
     repl.s = conn;
+    ///var n = 0; setInterval(function() {conn.send('aaa' + (++n))}, 500);
   });
   /***this.http.on('wsmessage', function(conn, message) {
     console.log('MESSAGE', message);
@@ -91,10 +92,10 @@ function Node(port) {
   });
   this.http.on('wsclose', function(conn, forced) {
     console.log('CLOSED', forced);
-  });***/
+  });
   this.http.on('wsdata', function(conn, data) {
     console.log('DATA', arguments);
-  });
+  });***/
   this.http.on('wserror', function(conn, error) {
     console.log('ERROR', error);
   });
