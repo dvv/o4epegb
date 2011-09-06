@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+    <script src="swfobject.js"></script>
+    <script>
+    swfobject.embedSWF(
+      'websocket.swc',
+      //'WebSocketMain.swf',
+      "swf",
+      "1" /* width */,
+      "1" /* height */,
+      "10.0.0" /* SWF version */,
+      null,
+      null,
+      {hasPriority: true, swliveconnect : true, allowScriptAccess: "always"},
+      null,
+      function(e) {
+        if (!e.success) {
+          console.error("[WebSocket] swfobject.embedSWF failed");
+        }
+      });
+    </script>
+</head>
+<body>
+Foo
+<div id="swf"></div>
+</body>
+</html>
