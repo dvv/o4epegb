@@ -1,29 +1,23 @@
 // Copyright: Hiroshi Ichikawa <http://gimite.net/en/>
 // License: New BSD License
 // Reference: http://dev.w3.org/html5/websockets/
-// Reference: http://tools.ietf.org/html/draft-ietf-hybi-thewebsocketprotocol-12
+// Reference: http://tools.ietf.org/html/draft-hixie-thewebsocketprotocol
 
 (function() {
   
-  if (window.WebSocket && !window.WEB_SOCKET_FORCE_FLASH) return;
-  
-  var logger;
-  if (window.WEB_SOCKET_LOGGER) {
-    logger = WEB_SOCKET_LOGGER;
-  } else if (window.console && window.console.log && window.console.error) {
-    // In some environment, console is defined but console.log or console.error is missing.
-    logger = window.console;
-  } else {
-    logger = {log: function(){ }, error: function(){ }};
+  if (window.WebSocket) return;
+
+  var console = window.console;
+  if (!console || !console.log || !console.error) {
+    console = {log: function(){ }, error: function(){ }};
   }
   
-  // swfobject.hasFlashPlayerVersion("10.0.0") doesn't work with Gnash.
-  if (swfobject.getFlashPlayerVersion().major < 10) {
-    logger.error("Flash Player >= 10.0.0 is required.");
+  if (!swfobject.hasFlashPlayerVersion("10.0.0")) {
+    console.error("Flash Player >= 10.0.0 is required.");
     return;
   }
   if (location.protocol == "file:") {
-    logger.error(
+    console.error(
       "WARNING: web-socket-js doesn't work in file:///... URL " +
       "unless you set Flash Security Settings properly. " +
       "Open the page via Web server i.e. http://...");
@@ -38,17 +32,11 @@
    * @param {string} headers
    */
   WebSocket = function(url, protocols, proxyHost, proxyPort, headers) {
-    logger.log("using Flash WebSocket");
     var self = this;
     self.__id = WebSocket.__nextId++;
     WebSocket.__instances[self.__id] = self;
     self.readyState = WebSocket.CONNECTING;
     self.bufferedAmount = 0;
-    if (typeof(window.ArrayBuffer) !== "undefined") {
-      self.binaryType = "arraybuffer";
-    } else {
-      self.binaryType = "array";
-    }
     self.__events = {};
     if (!protocols) {
       protocols = [];
@@ -57,9 +45,8 @@
     }
     // Uses setTimeout() to make sure __createFlash() runs after the caller sets ws.onopen etc.
     // Otherwise, when onopen fires immediately, onopen is called before it is set.
-    self.__createTask = setTimeout(function() {
+    setTimeout(function() {
       WebSocket.__addTask(function() {
-        self.__createTask = null;
         WebSocket.__flash.create(
             self.__id, url, protocols, proxyHost || null, proxyPort || 0, headers || null);
       });
@@ -68,13 +55,10 @@
 
   /**
    * Send data to the web socket.
-   * @param {DOMString} data    The DOMString to send to the socket.
-   * @param {ArrayBuffer} data  The ArrayBuffer to send to the socket.
-   * @param {Array} data        Array of 0-255 to send to the socket.
-   * @return void               
+   * @param {string} data  The data to send to the socket.
+   * @return {boolean}  True for success, false for failure.
    */
   WebSocket.prototype.send = function(data) {
-    var self = this;
     if (this.readyState == WebSocket.CONNECTING) {
       throw "INVALID_STATE_ERR: Web Socket connection has not been established";
     }
@@ -86,37 +70,19 @@
     // preserve all Unicode characters either e.g. "\uffff" in Firefox.
     // Note by wtritch: Hopefully this will not be necessary using ExternalInterface.  Will require
     // additional testing.
-
-    if ((typeof(data) === "object") &&
-        ((typeof(data.byteLength) !== "undefined") ||
-         (typeof(data.length) !== "undefined"))) {
-      // Array or ArrayBuffer
-      dtype = "a";
-      if (typeof(data.map) === "undefined") {
-        // Convert ArrayBuffer to normal Array 
-        var u8a = new Uint8Array(data), data = [];
-        for (var i = 0; i < u8a.length; i++) {
-          data.push(u8a[i]);
-        }
-      } 
-      data = data.map(function (num) {
-          return String.fromCharCode(num); } ).join('');
+    var result = WebSocket.__flash.send(this.__id, encodeURIComponent(data));
+    if (result < 0) { // success
+      return true;
     } else {
-      dtype = "s";
+      this.bufferedAmount += result;
+      return false;
     }
-    WebSocket.__flash.send(self.__id, dtype, encodeURIComponent(data));
   };
 
   /**
    * Close this web socket gracefully.
    */
   WebSocket.prototype.close = function() {
-    if (this.__createTask) {
-        clearTimeout(this.__createTask);
-        this.__createTask = null;
-        this.readyState = WebSocket.CLOSED;
-        return;
-    }
     if (this.readyState == WebSocket.CLOSED || this.readyState == WebSocket.CLOSING) {
       return;
     }
@@ -193,20 +159,6 @@
       jsEvent = this.__createSimpleEvent("close");
     } else if (flashEvent.type == "message") {
       var data = decodeURIComponent(flashEvent.message);
-      if (flashEvent.binary) {
-        if (this.binaryType === "arraybuffer") {
-          var ab = new Uint8Array(data.split('').map(
-                function(chr) { return chr.charCodeAt(0); }));
-          data = ab.buffer;
-        } else if (this.binaryType === "array") {
-          data = data.split('').map(
-                function(chr) { return chr.charCodeAt(0); });
-        } else if (this.binaryType === "blob") {
-          throw("Blob binaryType not supported");
-        } else {
-          throw("Invalid binaryType: " + this.binaryType);
-        }
-      }
       jsEvent = this.__createMessageEvent("message", data);
     } else {
       throw "unknown event type: " + flashEvent.type;
@@ -226,18 +178,14 @@
   };
   
   WebSocket.prototype.__createMessageEvent = function(type, data) {
-    //if (document.createEvent && window.MessageEvent && !window.opera) {
-    //  var event = document.createEvent("MessageEvent");
-    //  console.log("here6");
-    //  console.dir(data);
-    //  event.initMessageEvent("message", false, false, data, null, null, window, null);
-    //  event.data = data;
-    //  console.dir(event.data);
-    //  return event;
-    //} else {
+    if (document.createEvent && window.MessageEvent && !window.opera) {
+      var event = document.createEvent("MessageEvent");
+      event.initMessageEvent("message", false, false, data, null, null, window, null);
+      return event;
+    } else {
       // IE and Opera, the latter one truncates the data parameter after any 0x00 bytes.
       return {type: type, data: data, bubbles: false, cancelable: false};
-    //}
+    }
   };
   
   /**
@@ -274,21 +222,8 @@
       window.WEB_SOCKET_SWF_LOCATION = WebSocket.__swfLocation;
     }
     if (!window.WEB_SOCKET_SWF_LOCATION) {
-      logger.error("[WebSocket] set WEB_SOCKET_SWF_LOCATION to location of WebSocketMain.swf");
+      console.error("[WebSocket] set WEB_SOCKET_SWF_LOCATION to location of WebSocketMain.swf");
       return;
-    }
-    if (!window.WEB_SOCKET_SUPPRESS_CROSS_DOMAIN_SWF_ERROR &&
-        !WEB_SOCKET_SWF_LOCATION.match(/(^|\/)WebSocketMainInsecure\.swf(\?.*)?$/) &&
-        WEB_SOCKET_SWF_LOCATION.match(/^\w+:\/\/([^\/]+)/)) {
-      var swfHost = RegExp.$1;
-      if (location.host != swfHost) {
-        logger.error(
-            "[WebSocket] You must host HTML and WebSocketMain.swf in the same host " +
-            "('" + location.host + "' != '" + swfHost + "'). " +
-            "See also 'How to host HTML file and SWF file in different domains' section " +
-            "in README.md. If you use WebSocketMainInsecure.swf, you can suppress this message " +
-            "by WEB_SOCKET_SUPPRESS_CROSS_DOMAIN_SWF_ERROR = true;");
-      }
     }
     var container = document.createElement("div");
     container.id = "webSocketContainer";
@@ -323,7 +258,7 @@
       null,
       function(e) {
         if (!e.success) {
-          logger.error("[WebSocket] swfobject.embedSWF failed");
+          console.error("[WebSocket] swfobject.embedSWF failed");
         }
       });
   };
@@ -360,7 +295,7 @@
           WebSocket.__instances[events[i].webSocketId].__handleEvent(events[i]);
         }
       } catch (e) {
-        logger.error(e);
+        console.error(e);
       }
     }, 0);
     return true;
@@ -368,12 +303,12 @@
   
   // Called by Flash.
   WebSocket.__log = function(message) {
-    logger.log(decodeURIComponent(message));
+    console.log(decodeURIComponent(message));
   };
   
   // Called by Flash.
   WebSocket.__error = function(message) {
-    logger.error(decodeURIComponent(message));
+    console.error(decodeURIComponent(message));
   };
   
   WebSocket.__addTask = function(task) {
