@@ -73,6 +73,7 @@ function auth(url) {
 }
 
 var WebSocketServer = require('WebSocket-Node').server;
+// augment WebSocketConnection
 var Connection = require('./lib/websocket-8');
 
 function Node(port) {
@@ -86,27 +87,13 @@ function Node(port) {
     keepalive: false
   });
   this.ws.on('request', function(req) {
-    //req.reject(); return;
+    //req.reject(403); return;
     var conn = req.accept(null, req.origin);
-    for (var i in Connection.prototype) conn[i] = Connection.prototype[i];
-    Connection.call(conn);
-console.log(new Date(), 'CONNECT', conn.remoteAddress, req.websocketVersion);
-    conn.sendUTF(JSON.stringify({
-      msg: 'initCommands',
-      data: 'FOO'
-    }));
-    conn.on('close', function() {
-console.log(new Date(), 'DISCONNECT', conn.remoteAddress);
-    });
-    conn.on('message', function(message) {
-console.log(new Date(), 'message', message);
-      if (message.type === 'utf8') {
-        try {
-          var command = JSON.parse(message.utf8Data);
-        } catch(e) {
-                // do nothing if there's an error.
-        }
-      }
+    // install default handlers
+    Connection.call(conn, req);
+    conn.on('foo', function(aid) {
+console.log(new Date(), 'FOO!!!', arguments);
+		conn.ack(aid, 'foo', 'bar');
     });
   });
 }

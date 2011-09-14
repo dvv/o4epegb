@@ -50,7 +50,6 @@ function Conn() {
   var ws = new Connection();
   // N.B. we can send before connection
   for (var i = 0; i < 10; ++i) ws.send('a' + i);
-  for (var i = 0; i < 2; ++i) ws.quality().send('u' + i);
   ws.on('error', function() {
     console.log('ERROR:', new Date(), this.id, this, arguments);
   });
