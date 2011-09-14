@@ -89,11 +89,11 @@ function Node(port) {
   /***this.http.on('wsmessage', function(conn, message) {
     console.log('MESSAGE', message);
     //socket.send(message + message);
-  });
+  });***/
   this.http.on('wsclose', function(conn, forced) {
-    console.log('CLOSED', forced);
+    console.log('CLOSED', conn.id, forced);
   });
-  this.http.on('wsdata', function(conn, data) {
+  /***this.http.on('wsdata', function(conn, data) {
     console.log('DATA', arguments);
   });***/
   this.http.on('wserror', function(conn, error) {
