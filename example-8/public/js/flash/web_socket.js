@@ -104,7 +104,8 @@
     } else {
       dtype = "s";
     }
-    WebSocket.__flash.send(self.__id, dtype, encodeURIComponent(data));
+    var ret = WebSocket.__flash.send(self.__id, dtype, encodeURIComponent(data));
+    return ret;
   };
 
   /**

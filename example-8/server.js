@@ -72,7 +72,8 @@ function auth(url) {
 
 }
 
-var WebSocketServer = require('websocket').server;
+var WebSocketServer = require('WebSocket-Node').server;
+var Connection = require('./lib/websocket-8');
 
 function Node(port) {
   // web server
@@ -85,7 +86,10 @@ function Node(port) {
     keepalive: false
   });
   this.ws.on('request', function(req) {
+    //req.reject(); return;
     var conn = req.accept(null, req.origin);
+    for (var i in Connection.prototype) conn[i] = Connection.prototype[i];
+    Connection.call(conn);
 console.log(new Date(), 'CONNECT', conn.remoteAddress, req.websocketVersion);
     conn.sendUTF(JSON.stringify({
       msg: 'initCommands',
@@ -108,9 +112,9 @@ console.log(new Date(), 'message', message);
 }
 
 var s1 = new Node(3001);
-var s2 = new Node(3002);
+/*var s2 = new Node(3002);
 var s3 = new Node(3003);
-var s4 = new Node(3004);
+var s4 = new Node(3004);*/
 
 var repl = require('repl').start('node> ').context;
 process.stdin.on('close', process.exit);
