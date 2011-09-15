@@ -1,25 +1,39 @@
-require(['jquery-1.6.4.min', 'order!json2', 'es5-shim', 'doT', 'order!connection-8'], function() {
-  if (typeof MozWebSocket !== 'undefined') {
-    WebSocket = MozWebSocket;
+require([
+  'jquery-1.6.4.min',
+  'order!json2',
+  'es5-shim',
+  'doT',
+  'order!connection-8'], function() {
+  var browser = $.browser;
+  // FF >= 7.0 introduces MozWebSocket
+  if (typeof MozWebSocket !== 'undefined') WebSocket = MozWebSocket;
+  // only some browsers support draft 8 WebSocket so far
+  if (typeof WebSocket !== 'undefined' && (
+    // FF >= 7.0
+    (browser.mozilla && +browser.version >= 7) ||
+    // Chrome >= 14
+    (browser.webkit && +browser.version >= 536)
+  )) {
     main();
-  } if (typeof WebSocket === 'undefined' || WebSocket.CLOSED === 2 || typeof opera !== 'undefined') {
+  // provide shim for older browsers
+  } else {
+    // N.B. let shim always apply, nomatter there is native WebSocket
     WebSocket = false;
-    window.WEB_SOCKET_SWF_LOCATION = 'js/flash/WebSocketMain.swf';
+    window.WEB_SOCKET_DEBUG = true
+    window.WEB_SOCKET_SWF_LOCATION = 'js/flash/WebSocketMainInsecure.swf';
+    // FIXME: web_socket.js's way of attaching onload event clashes with
+    // requirejs.
+    // See https://github.com/kanaka/web-socket-js/commit/978e31ce6ff15926391b616667c4e4370bbac800#commitcomment-590868
+    window.WEB_SOCKET_DISABLE_AUTO_INITIALIZATION = true;
     require(['order!flash/swfobject', 'order!flash/web_socket'], function() {
-      console.log('SWF', arguments);
-      //delete WEB_SOCKET_SWF_LOCATION;
-      // FIXME: web_socket.js's way of attaching event to onload fails for IE
-      if ($.browser.msie) {
-        WebSocket.__initialize()
-      }
+      WebSocket.__initialize()
       main();
     });
-  } else {
-    main();
   }
 });
 
 function main() {
+console.log('STARTING');
 
 function Conn() {
   var ws = new Connection();

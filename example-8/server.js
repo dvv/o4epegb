@@ -16,6 +16,13 @@ console.error('HEAD', req.method, req.url);
 next();
 },
 
+  // snoop into User-Agent:
+  Stack.userAgent(),
+function(req, res, next) {
+console.error('UA', req.ua.hybi8);
+next();
+},
+
   // serve static content
   Stack.static(__dirname + '/public', 'index.html', {
     maxAge: 0,//86400000,
@@ -79,23 +86,37 @@ var Connection = require('./lib/websocket-8');
 function Node(port) {
   // web server
   this.http = Stack.listen(stack(), {}, port);
-  console.log('Listening to http://*:' + port + '. Use Ctrl+C to stop.');
-  // handle WebSocket connections
+  // flash policy server
+  // FIXME: doesn't work thru haproxy
+  this.http.listeners('connection').unshift(function(socket) {
+    socket.once('data', function(data) {
+      if (
+           data
+        && data[0] === 60
+        && data.toString() === '<policy-file-request/>\0'
+        && socket
+        && (socket.readyState === 'open' || socket.readyState === 'writeOnly')
+      ) {
+        // send the buffer
+console.error('FLASH!');
+        socket.end('<cross-domain-policy><allow-access-from domain="*" to-ports="*" /></cross-domain-policy>');
+      }
+    });
+  });
+  // WebSocket server on top of web server
   this.ws = new WebSocketServer({
     httpServer: this.http,
     fragmentOutgoingMessages: false,
     keepalive: false
   });
+  // WebSocket connection handler
   this.ws.on('request', function(req) {
     //req.reject(403); return;
     var conn = req.accept(null, req.origin);
     // install default handlers
     Connection.call(conn, req);
-    conn.on('foo', function(aid) {
-console.log(new Date(), '???FOO!!!', arguments);
-      conn.ack(aid, 'foo', 'bar');
-    });
   });
+  // WebSocket event handlers
   this.http.on('wsevent', function(conn, args) {
     console.log('EVENT', args);
   });
@@ -103,6 +124,8 @@ console.log(new Date(), '???FOO!!!', arguments);
 console.log(new Date(), '!!!' + event + '!!!');
     conn.ack(arguments[2], 'foo', 'bar');
   });
+  // notify
+  console.log('Listening to http://*:' + port + '. Use Ctrl+C to stop.');
 }
 
 var s1 = new Node(3001);
