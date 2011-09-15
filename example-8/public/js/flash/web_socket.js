@@ -273,10 +273,12 @@
       // For backword compatibility.
       window.WEB_SOCKET_SWF_LOCATION = WebSocket.__swfLocation;
     }
+    
     if (!window.WEB_SOCKET_SWF_LOCATION) {
       logger.error("[WebSocket] set WEB_SOCKET_SWF_LOCATION to location of WebSocketMain.swf");
       return;
     }
+    
     if (!window.WEB_SOCKET_SUPPRESS_CROSS_DOMAIN_SWF_ERROR &&
         !WEB_SOCKET_SWF_LOCATION.match(/(^|\/)WebSocketMainInsecure\.swf(\?.*)?$/) &&
         WEB_SOCKET_SWF_LOCATION.match(/^\w+:\/\/([^\/]+)/)) {
@@ -290,6 +292,7 @@
             "by WEB_SOCKET_SUPPRESS_CROSS_DOMAIN_SWF_ERROR = true;");
       }
     }
+    
     var container = document.createElement("div");
     container.id = "webSocketContainer";
     // Hides Flash box. We cannot use display: none or visibility: hidden because it prevents
@@ -298,6 +301,7 @@
     // Lite, we put it at (0, 0). This shows 1x1 box visible at left-top corner but this is
     // the best we can do as far as we know now.
     container.style.position = "absolute";
+    
     if (WebSocket.__isFlashLite()) {
       container.style.left = "0px";
       container.style.top = "0px";
@@ -305,6 +309,7 @@
       container.style.left = "-100px";
       container.style.top = "-100px";
     }
+    
     var holder = document.createElement("div");
     holder.id = "webSocketFlash";
     container.appendChild(holder);

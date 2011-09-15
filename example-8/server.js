@@ -18,7 +18,7 @@ next();
 
   // serve static content
   Stack.static(__dirname + '/public', 'index.html', {
-    maxAge: 0,
+    maxAge: 0,//86400000,
     //cacheThreshold: 16384
   }),
   // dynamic content requires session
@@ -92,9 +92,16 @@ function Node(port) {
     // install default handlers
     Connection.call(conn, req);
     conn.on('foo', function(aid) {
-console.log(new Date(), 'FOO!!!', arguments);
-		conn.ack(aid, 'foo', 'bar');
+console.log(new Date(), '???FOO!!!', arguments);
+      conn.ack(aid, 'foo', 'bar');
     });
+  });
+  this.http.on('wsevent', function(conn, args) {
+    console.log('EVENT', args);
+  });
+  this.http.on('wsevent', function(conn, event /*, args... */) {
+console.log(new Date(), '!!!' + event + '!!!');
+    conn.ack(arguments[2], 'foo', 'bar');
   });
 }
 
