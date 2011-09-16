@@ -18,7 +18,7 @@ global
 	#
 
 	log 127.0.0.1 local0
-	debug
+	#debug
 	#quiet
 
 	#
@@ -100,29 +100,6 @@ frontend farm
 	acl site_dead nbsrv(dynamic) lt 2
 	acl site_dead nbsrv(static)  lt 2
 	monitor fail if site_dead
-
-frontend flash
-	mode tcp
-	bind 0.0.0.0:888
-	default_backend nop
-	acl is_flash req_flash_policy
-	tcp-request inspect-delay 3s
-	tcp-request content accept if is_flash
-	tcp-request content reject
-	use_backend flashb if is_flash
-	timeout client 1d
-
-backend nop
-	mode tcp
-	server s1 127.0.0.1:4567
-	timeout connect 1d
-	timeout server 1d
-
-backend flashb
-	mode tcp
-	server s1 127.0.0.1:3001
-	timeout connect 1d
-	timeout server 1d
 
 backend http
 

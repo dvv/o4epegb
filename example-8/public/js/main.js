@@ -19,13 +19,14 @@ require([
   } else {
     // N.B. let shim always apply, nomatter there is native WebSocket
     WebSocket = false;
-    //window.WEB_SOCKET_DEBUG = true
+    window.WEB_SOCKET_DEBUG = true
     window.WEB_SOCKET_SWF_LOCATION = 'js/flash/WebSocketMain.swf';
     // FIXME: web_socket.js's way of attaching onload event clashes with
     // requirejs.
     // See https://github.com/kanaka/web-socket-js/commit/978e31ce6ff15926391b616667c4e4370bbac800#commitcomment-590868
     window.WEB_SOCKET_DISABLE_AUTO_INITIALIZATION = true;
     require(['order!flash/swfobject', 'order!flash/web_socket'], function() {
+      WebSocket.loadFlashPolicyFile('xmlsocket://localhost:888');
       WebSocket.__initialize();
       main();
     });
