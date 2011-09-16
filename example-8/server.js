@@ -12,14 +12,14 @@ return [
   Stack.health(),
 
 function(req, res, next) {
-console.error('HEAD', req.method, req.url);
+//console.error('HEAD', req.method, req.url);
 next();
 },
 
   // snoop into User-Agent:
   Stack.userAgent(),
 function(req, res, next) {
-console.error('UA', req.ua.hybi8);
+//console.error('UA', req.ua.hybi8);
 next();
 },
 
@@ -86,20 +86,20 @@ var Connection = require('./lib/websocket-8');
 function Node(port) {
   // web server
   this.http = Stack.listen(stack(), {}, port);
-  // flash policy server
-  // FIXME: doesn't work thru haproxy
+  // minimal flash socket policy inline server
+  // TODO: configurable response
+  var policy = '<cross-domain-policy><allow-access-from domain="*" to-ports="*" /></cross-domain-policy>';
   this.http.listeners('connection').unshift(function(socket) {
     socket.once('data', function(data) {
-      if (
-           data
-        && data[0] === 60
+      if (data && data[0] === 60
         && data.toString() === '<policy-file-request/>\0'
+        //&& data.toString().substring(0, 3) === '</>'
         && socket
         && (socket.readyState === 'open' || socket.readyState === 'writeOnly')
       ) {
-        // send the buffer
-console.error('FLASH!');
-        socket.end('<cross-domain-policy><allow-access-from domain="*" to-ports="*" /></cross-domain-policy>');
+console.log('FLASH!');
+        // send the policy
+        socket.end(policy);
       }
     });
   });
@@ -129,9 +129,9 @@ console.log(new Date(), '!!!' + event + '!!!');
 }
 
 var s1 = new Node(3001);
-/*var s2 = new Node(3002);
+var s2 = new Node(3002);
 var s3 = new Node(3003);
-var s4 = new Node(3004);*/
+var s4 = new Node(3004);
 
 var repl = require('repl').start('node> ').context;
 process.stdin.on('close', process.exit);
