@@ -26,13 +26,14 @@ require([
     // See https://github.com/kanaka/web-socket-js/commit/978e31ce6ff15926391b616667c4e4370bbac800#commitcomment-590868
     window.WEB_SOCKET_DISABLE_AUTO_INITIALIZATION = true;
     require(['order!flash/swfobject', 'order!flash/web_socket'], function() {
-      WebSocket.__initialize()
       WebSocket.loadFlashPolicyFile('http://localhost/crossdomain.xml');
-      console.log('AAA');
-      setTimeout(function(){
-      console.log('BBB');
-      main();
-      },5000);
+console.log('000');
+      setTimeout(function() {
+console.log('AAA');
+        WebSocket.__initialize();
+console.log('BBB');
+        main();
+      }, 2000);
     });
   }
 });
