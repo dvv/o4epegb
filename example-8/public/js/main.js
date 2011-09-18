@@ -12,7 +12,7 @@ require([
     // FF >= 7.0
     (browser.mozilla && +browser.version >= 7) ||
     // Chrome >= 14
-    (browser.webkit && +browser.version > 535.1)
+    (browser.webkit && +browser.version > 535.0)
   )) {
     main();
   // provide shim for older browsers
